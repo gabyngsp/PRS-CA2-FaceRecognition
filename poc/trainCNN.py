@@ -32,7 +32,7 @@ from tensorflow.keras.regularizers import l2
 
 def preprocess_image(image):
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image, [192, 192])
+    image = tf.image.resize(image, [64, 64])
     image /= 255.0  # normalize to [0,1] range
 
     return image
@@ -224,6 +224,8 @@ def main():
         print(item)
 
     all_image_paths = list(data_root.glob('*/*.jpg'))
+    all_image_paths = sorted(all_image_paths)
+
     all_image_paths = [str(path) for path in all_image_paths]
     random.shuffle(all_image_paths)
 
@@ -243,12 +245,18 @@ def main():
     df = pd.DataFrame()
     df['filename'] = all_image_paths
     df['label'] = all_image_labels
+    df.to_csv('df.csv')
 
-    print('DF:', df)
-    msk = np.random.rand(len(df)) < 0.8
+    # print('DF:', df)
+    mask = np.random.rand(len(df))
+    train_mask = mask < 0.7
+    validation_mask = np.logical_and(mask > 0.7, mask < 0.9)
+    test_mask = mask > 0.9
 
-    tdf = df[msk]
-    vdf = df[~msk]
+    tdf = df[train_mask]
+    vdf = df[validation_mask]
+    test_df = df[test_mask]
+    test_df.to_csv('test_set.csv')
 
     # printSample(all_image_paths)
 
@@ -274,8 +282,8 @@ def main():
     #
     # print(label_ds)
 
-    batch_size = 32
-    target_size = (128, 128)
+    batch_size = 128
+    target_size = (64, 64)
 
     model = createModel(target_size)  # This is meant for training
     modelGo = createModel(target_size)  # This is used for final testing
@@ -316,7 +324,7 @@ def main():
 
     model.fit_generator(train_generator,
                         validation_data=valid_generator,
-                        epochs=300,
+                        epochs=200,
                         verbose=1,
                         steps_per_epoch=STEP_SIZE_TRAIN,
                         callbacks=callbacks_list)
@@ -327,10 +335,10 @@ def main():
     # another object to load the weights
     # compile it, so that we can do
     # final evaluation on it
-    modelGo.load_weights(filepath)
-    modelGo.compile(loss='categorical_crossentropy',
-                    optimizer=optimizers.Adam(lr=0.001),
-                    metrics=['accuracy'])
+    # modelGo.load_weights(filepath)
+    # modelGo.compile(loss='categorical_crossentropy',
+    #                 optimizer=optimizers.Adam(lr=0.001),
+    #                 metrics=['accuracy'])
 
 
 if __name__ == '__main__':
