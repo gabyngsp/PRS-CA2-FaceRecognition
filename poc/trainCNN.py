@@ -14,31 +14,37 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras import Sequential
 from tensorflow.keras import optimizers
 from tensorflow.keras.callbacks import LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.keras.layers import Activation
-from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import add
 from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.regularizers import l2
 
+pixel = 128
+batch_size = 64
+
 
 def preprocess_image(image):
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.resize(image, [64, 64])
+    image = tf.image.resize(image, [pixel, pixel])
     image /= 255.0  # normalize to [0,1] range
 
     return image
 
 
 def load_and_preprocess_image(path):
+    print('load_and_preprocess_image:', path)
     image = tf.read_file(path)
     return preprocess_image(image)
 
@@ -81,6 +87,7 @@ def resLyr(inputs,
 def resBlkV1(inputs,
              numFilters=16,
              numBlocks=3,
+             kernelSize=3,
              downSampleOnFirst=True,
              names=None):
     x = inputs
@@ -92,10 +99,12 @@ def resBlkV1(inputs,
 
         y = resLyr(inputs=x,
                    numFilters=numFilters,
+                   kernelSize=kernelSize,
                    strides=strides,
                    lyrName=names + '_Blk' + blkStr + '_Res1' if names else None)
         y = resLyr(inputs=y,
                    numFilters=numFilters,
+                   kernelSize=kernelSize,
                    activation=None,
                    lyrName=names + '_Blk' + blkStr + '_Res2' if names else None)
 
@@ -117,31 +126,35 @@ def resBlkV1(inputs,
 
 
 def createResNetV1(inputShape=(32, 32, 3),
-                   numberClasses=4):
+                   numberClasses=3):
     inputs = Input(shape=inputShape)
-    v = resLyr(inputs, numFilters=64, kernelSize=7, lyrName='Inpt')
-    v = resBlkV1(inputs=v,
-                 numFilters=64,
-                 numBlocks=3,
-                 downSampleOnFirst=False,
-                 names='Stg1')
-    v = resBlkV1(inputs=v,
-                 numFilters=128,
-                 numBlocks=4,
-                 downSampleOnFirst=True,
-                 names='Stg2')
-    v = resBlkV1(inputs=v,
-                 numFilters=256,
-                 numBlocks=5,
-                 downSampleOnFirst=True,
-                 names='Stg3')
-    v = resBlkV1(inputs=v,
-                 numFilters=512,
-                 numBlocks=6,
-                 downSampleOnFirst=True,
-                 names='Stg4')
-    v = AveragePooling2D(pool_size=4,
-                         name='AvgPool')(v)
+    v = resLyr(inputs, numFilters=16, kernelSize=3, lyrName='Inpt')
+    # v = resBlkV1(inputs=v,
+    #              numFilters=16,
+    #              numBlocks=1,
+    #              kernelSize=3,
+    #              downSampleOnFirst=False,
+    #              names='Stg1')
+    # v = resBlkV1(inputs=v,
+    #              numFilters=32,
+    #              numBlocks=8,
+    #              kernelSize=5,
+    #              downSampleOnFirst=True,
+    #              names='Stg2')
+    # v = resBlkV1(inputs=v,
+    #              numFilters=64,
+    #              numBlocks=10,
+    #              kernelSize=3,
+    #              downSampleOnFirst=True,
+    #              names='Stg3')
+    # v = resBlkV1(inputs=v,
+    #              numFilters=512,
+    #              numBlocks=6,
+    #              kernelSize=3,
+    #              downSampleOnFirst=True,
+    #              names='Stg4')
+    # v = AveragePooling2D(pool_size=64,
+    #                      name='AvgPool')(v)
     v = Flatten()(v)
     outputs = Dense(numberClasses,
                     activation='softmax',
@@ -155,17 +168,49 @@ def createResNetV1(inputShape=(32, 32, 3),
     return model
 
 
-#     parallel = multi_gpu_model(model, gpus=2)
-
-#     parallel.compile(loss='categorical_crossentropy',
-#              optimizer = optmz,
-#              metrics=['accuracy'])
-
-#     return parallel
+    # parallel = multi_gpu_model(model, gpus=2)
+    #
+    # parallel.compile(loss='categorical_crossentropy',
+    #          optimizer = optimizers.Adam(lr=0.001),
+    #          metrics=['accuracy'])
+    #
+    # return parallel
 
 
 def createModel(target_size=(128, 128)):
-    model = createResNetV1(inputShape=(target_size[0], target_size[1], 3))
+    # model = createResNetV1(inputShape=(target_size[0], target_size[1], 3))
+
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3),
+                     input_shape=(target_size[0], target_size[1], 3)))
+    model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(64, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    #
+    model.add(Conv2D(128, (3, 3)))
+    model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(256, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+
+    model.add(Conv2D(256, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Dropout(0.25))
+
+    model.add(Flatten())
+    model.add(Dense(128))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(3, activation='softmax'))
+
+    model.compile(optimizer=optimizers.Adam(lr=0.001),
+                                     loss="categorical_crossentropy", metrics=["accuracy"])
 
     return model
 
@@ -210,7 +255,13 @@ def lrSchedule(epoch):
 
 
 def main():
-    tf.compat.v1.enable_eager_execution()
+    target_size = (pixel, pixel)
+
+
+    seed = 29
+    np.random.seed(seed)
+
+    # tf.compat.v1.enable_eager_execution()
     # matplotlib.use("GTK3Cairo")
 
     # loading data.
@@ -255,38 +306,13 @@ def main():
 
     tdf = df[train_mask]
     vdf = df[validation_mask]
+    vdf.to_csv('v_set.csv')
+
     test_df = df[test_mask]
     test_df.to_csv('test_set.csv')
 
-    # printSample(all_image_paths)
 
-    # path_ds = tf.data.Dataset.from_tensor_slices(all_image_paths)
-    #
-    # print('shape:', repr(path_ds.output_shapes))
-    # print('type:', path_ds.output_types)
-    # print('type:', path_ds.output_classes)
-    # print(path_ds)
-    # image_ds = path_ds.map(load_and_preprocess_image, num_parallel_calls=AUTOTUNE)
-    #
-    # plt.figure(figsize=(8, 8))
-    # for n, image in enumerate(image_ds.take(4)):
-    #     plt.subplot(2, 2, n + 1)
-    #     plt.imshow(image)
-    #     plt.grid(False)
-    #     plt.xticks([])
-    #     plt.yticks([])
-    #     plt.xlabel(all_image_paths[n])
-    # # plt.show()
-    #
-    # label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(all_image_labels, tf.int64))
-    #
-    # print(label_ds)
-
-    batch_size = 128
-    target_size = (64, 64)
-
-    model = createModel(target_size)  # This is meant for training
-    modelGo = createModel(target_size)  # This is used for final testing
+    model = createModel(target_size)
 
     print('model summary:', model.summary())
 
@@ -305,28 +331,46 @@ def main():
     LRScheduler = LearningRateScheduler(lrSchedule)
     callbacks_list = [checkpoint, csv_logger, LRScheduler]
 
-    datagen = ImageDataGenerator(width_shift_range=0.1,
+    datagen = ImageDataGenerator(
+        width_shift_range=0.1,
                                  height_shift_range=0.1,
-                                 rotation_range=30,
-                                 zoom_range=0.15,
-                                 shear_range=0.15,
+                                 rotation_range=20,
+                                 zoom_range=0.10,
+                                 # shear_range=0.15,
                                  horizontal_flip=True,
                                  vertical_flip=False,
+
+                                 fill_mode='nearest')
+
+    vdatagen = ImageDataGenerator(
+        width_shift_range=0.1,
+                                 height_shift_range=0.1,
+                                 rotation_range=20,
+                                 zoom_range=0.10,
+                                 # shear_range=0.15,
+                                 horizontal_flip=True,
+                                 vertical_flip=False,
+
                                  fill_mode='nearest')
 
     train_generator = datagen.flow_from_dataframe(dataframe=tdf, x_col="filename", y_col="label",
                                                   class_mode="categorical", target_size=target_size,
+                                                  shuffle=True,
                                                   batch_size=batch_size)
-    valid_generator = datagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
+
+    valid_generator = vdatagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
                                                   class_mode="categorical", target_size=target_size,
+                                                  shuffle=True,
                                                   batch_size=batch_size)
     STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
+    STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
 
     model.fit_generator(train_generator,
                         validation_data=valid_generator,
-                        epochs=200,
+                        epochs=100,
                         verbose=1,
                         steps_per_epoch=STEP_SIZE_TRAIN,
+                        validation_steps = STEP_SIZE_VALID,
                         callbacks=callbacks_list)
 
     # ......................................................................

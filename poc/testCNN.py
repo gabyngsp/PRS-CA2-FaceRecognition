@@ -1,15 +1,20 @@
+import os
 import pathlib
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import sklearn.metrics as metrics
 import tensorflow as tf
 from tensorflow.keras import optimizers
 
-from trainCNN import createResNetV1, load_and_preprocess_image
+import trainCNN
+from trainCNN import load_and_preprocess_image, createModel
 
+pixel = trainCNN.pixel
 
 def main():
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     tf.compat.v1.enable_eager_execution()
 
     data_root_orig = './data'
@@ -18,6 +23,7 @@ def main():
     data_root = pathlib.Path(data_root_orig)
     print(data_root)
     label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
+    label_to_index = dict((name, i) for i, name in enumerate(label_names))
 
     for item in data_root.iterdir():
         print(item)
@@ -50,7 +56,7 @@ def main():
 
     filepath = modelname + ".hdf5"
 
-    modelGo = createResNetV1(inputShape=(64, 64, 3))  # This is used for final testing
+    modelGo = createModel(target_size=(pixel, pixel))  # This is used for final testing
     modelGo.load_weights(filepath)
     modelGo.compile(loss='categorical_crossentropy',
                     optimizer=optimizers.Adam(lr=0.001),
@@ -58,17 +64,54 @@ def main():
 
 
 
-    check =load_and_preprocess_image('test/IMG_20190904_204717.jpg')
-    check = tf.image.rot90(check, k=1)
+    test_set_df = pd.read_csv('test_set.csv')
+    # test_set_df = pd.read_csv('v_set.csv')
 
+
+    test_set_df['data'] = test_set_df['filename'].apply(load_and_preprocess_image)
+
+    # print('data:', test_set_df['data'][0].shape)
+    # plt.imshow(test_set_df['data'][0])
+    # plt.show()
+    # plt.imshow(test_set_df['data'][1])
+    # plt.show()
+
+    # print(test_set_df['data'].as_matrix())
+
+    predicts = modelGo.predict(tf.stack(test_set_df['data'].values, axis=0))
+
+    predout = np.argmax(predicts, axis=1)
+    testout = test_set_df['label'].apply(lambda x: label_to_index[x]).values
+
+    print('testout:', testout)
+    print('predout:', predout)
+
+    testScores = metrics.accuracy_score(testout, predout)
+    confusion = metrics.confusion_matrix(testout, predout)
+
+    print("Best accuracy (on testing dataset): %.2f%%" % (testScores * 100))
+    print(metrics.classification_report(testout, predout, target_names=label_names, digits=4))
+    print(confusion)
+
+    testAnImage(test_set_df['filename'][0], label_names, modelGo)
+    testAnImage(test_set_df['filename'][1], label_names, modelGo)
+    # testAnImage('test/IMG_20190904_204717.jpg', label_names, modelGo)
+
+
+
+
+
+def testAnImage(filename, label_names, modelGo):
+    check = load_and_preprocess_image(filename)
+    # check = tf.image.rot90(check, k=1)
     plt.imshow(check)
     plt.show()
     print(type(check))
-
     predicts = modelGo.predict(np.asarray([check]))
-
     print(label_names)
     print(predicts)
+
+
 #
 #
 # from tensorflow.keras.utils import plot_model
