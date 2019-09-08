@@ -7,11 +7,13 @@ import pandas as pd
 import sklearn.metrics as metrics
 import tensorflow as tf
 from tensorflow.keras import optimizers
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import trainCNN
 from trainCNN import load_and_preprocess_image, createModel
 
 pixel = trainCNN.pixel
+
 
 def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -31,10 +33,10 @@ def main():
     all_image_paths = list(data_root.glob('*/*.jpg'))
     all_image_paths = sorted(all_image_paths)
 
-    print(all_image_paths)
+    # print(all_image_paths)
 
-    msk = np.random.rand(10)
-    print(msk > 0.9)
+    # msk = np.random.rand(10)
+    # print(msk > 0.9)
 
     records = pd.read_csv(modelname + '.csv')
     plt.figure()
@@ -62,13 +64,31 @@ def main():
                     optimizer=optimizers.Adam(lr=0.001),
                     metrics=['accuracy'])
 
-
+    tdatagen = ImageDataGenerator(
+        featurewise_center=True,
+        featurewise_std_normalization=True,
+        width_shift_range=0,
+        height_shift_range=0,
+        rotation_range=0,
+        zoom_range=0,
+        # shear_range=0.15,
+        horizontal_flip=True,
+        vertical_flip=False,
+        fill_mode='nearest')
 
     test_set_df = pd.read_csv('test_set.csv')
     # test_set_df = pd.read_csv('v_set.csv')
 
+    # test_set_df['data'] = test_set_df['filename'].apply(load_and_preprocess_image)
+    # test_set_df.drop_duplicates(subset=['data'], inplace=True)
+    # print('after dedup,',len(test_set_df))
 
-    test_set_df['data'] = test_set_df['filename'].apply(load_and_preprocess_image)
+    test_generator = valid_generator = tdatagen.flow_from_dataframe(dataframe=test_set_df, x_col="filename",
+                                                                    y_col="label",
+                                                                    class_mode="categorical",
+                                                                    target_size=(pixel, pixel),
+                                                                    shuffle=False,
+                                                                    batch_size=128)
 
     # print('data:', test_set_df['data'][0].shape)
     # plt.imshow(test_set_df['data'][0])
@@ -78,11 +98,11 @@ def main():
 
     # print(test_set_df['data'].as_matrix())
 
-    predicts = modelGo.predict(tf.stack(test_set_df['data'].values, axis=0))
+    # predicts = modelGo.predict(tf.stack(test_set_df['data'].values, axis=0))
 
+    predicts = modelGo.predict_generator(test_generator )
     predout = np.argmax(predicts, axis=1)
     testout = test_set_df['label'].apply(lambda x: label_to_index[x]).values
-
     print('testout:', testout)
     print('predout:', predout)
 
@@ -96,9 +116,6 @@ def main():
     testAnImage(test_set_df['filename'][0], label_names, modelGo)
     testAnImage(test_set_df['filename'][1], label_names, modelGo)
     # testAnImage('test/IMG_20190904_204717.jpg', label_names, modelGo)
-
-
-
 
 
 def testAnImage(filename, label_names, modelGo):

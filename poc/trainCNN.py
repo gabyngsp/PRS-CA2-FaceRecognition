@@ -14,11 +14,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras import Model
 from tensorflow.keras import Sequential
 from tensorflow.keras import optimizers
 from tensorflow.keras.callbacks import LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Dense
@@ -27,12 +29,11 @@ from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import add
-from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.regularizers import l2
 
 pixel = 128
-batch_size = 64
+batch_size = 128
 
 
 def preprocess_image(image):
@@ -129,32 +130,32 @@ def createResNetV1(inputShape=(32, 32, 3),
                    numberClasses=3):
     inputs = Input(shape=inputShape)
     v = resLyr(inputs, numFilters=16, kernelSize=3, lyrName='Inpt')
-    # v = resBlkV1(inputs=v,
-    #              numFilters=16,
-    #              numBlocks=1,
-    #              kernelSize=3,
-    #              downSampleOnFirst=False,
-    #              names='Stg1')
-    # v = resBlkV1(inputs=v,
-    #              numFilters=32,
-    #              numBlocks=8,
-    #              kernelSize=5,
-    #              downSampleOnFirst=True,
-    #              names='Stg2')
-    # v = resBlkV1(inputs=v,
-    #              numFilters=64,
-    #              numBlocks=10,
-    #              kernelSize=3,
-    #              downSampleOnFirst=True,
-    #              names='Stg3')
-    # v = resBlkV1(inputs=v,
-    #              numFilters=512,
-    #              numBlocks=6,
-    #              kernelSize=3,
-    #              downSampleOnFirst=True,
-    #              names='Stg4')
-    # v = AveragePooling2D(pool_size=64,
-    #                      name='AvgPool')(v)
+    v = resBlkV1(inputs=v,
+                 numFilters=16,
+                 numBlocks=1,
+                 kernelSize=3,
+                 downSampleOnFirst=False,
+                 names='Stg1')
+    v = resBlkV1(inputs=v,
+                 numFilters=32,
+                 numBlocks=8,
+                 kernelSize=5,
+                 downSampleOnFirst=True,
+                 names='Stg2')
+    v = resBlkV1(inputs=v,
+                 numFilters=64,
+                 numBlocks=10,
+                 kernelSize=3,
+                 downSampleOnFirst=True,
+                 names='Stg3')
+    v = resBlkV1(inputs=v,
+                 numFilters=512,
+                 numBlocks=6,
+                 kernelSize=3,
+                 downSampleOnFirst=True,
+                 names='Stg4')
+    v = AveragePooling2D(pool_size=4,
+                         name='AvgPool')(v)
     v = Flatten()(v)
     outputs = Dense(numberClasses,
                     activation='softmax',
@@ -166,7 +167,6 @@ def createResNetV1(inputShape=(32, 32, 3),
                   optimizer=optimizers.Adam(lr=0.001),
                   metrics=['accuracy'])
     return model
-
 
     # parallel = multi_gpu_model(model, gpus=2)
     #
@@ -192,7 +192,8 @@ def createModel(target_size=(128, 128)):
     #
     model.add(Conv2D(128, (3, 3)))
     model.add(Activation('relu'))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
     model.add(Conv2D(256, (3, 3)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -201,7 +202,13 @@ def createModel(target_size=(128, 128)):
     model.add(Conv2D(256, (3, 3)))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Dropout(0.25))
+    model.add(Dropout(0.25))
+
+    model.add(Conv2D(512, (3, 3)))
+    model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Conv2D(512, (3, 3)))
+    # model.add(Activation('relu'))
 
     model.add(Flatten())
     model.add(Dense(128))
@@ -257,7 +264,6 @@ def lrSchedule(epoch):
 def main():
     target_size = (pixel, pixel)
 
-
     seed = 29
     np.random.seed(seed)
 
@@ -311,7 +317,6 @@ def main():
     test_df = df[test_mask]
     test_df.to_csv('test_set.csv')
 
-
     model = createModel(target_size)
 
     print('model summary:', model.summary())
@@ -332,26 +337,28 @@ def main():
     callbacks_list = [checkpoint, csv_logger, LRScheduler]
 
     datagen = ImageDataGenerator(
+        featurewise_center=True,
+        featurewise_std_normalization=True,
         width_shift_range=0.1,
-                                 height_shift_range=0.1,
-                                 rotation_range=20,
-                                 zoom_range=0.10,
-                                 # shear_range=0.15,
-                                 horizontal_flip=True,
-                                 vertical_flip=False,
-
-                                 fill_mode='nearest')
+        height_shift_range=0.1,
+        rotation_range=20,
+        zoom_range=0.10,
+        # shear_range=0.15,
+        horizontal_flip=True,
+        vertical_flip=False,
+        fill_mode='nearest')
 
     vdatagen = ImageDataGenerator(
-        width_shift_range=0.1,
-                                 height_shift_range=0.1,
-                                 rotation_range=20,
-                                 zoom_range=0.10,
-                                 # shear_range=0.15,
-                                 horizontal_flip=True,
-                                 vertical_flip=False,
-
-                                 fill_mode='nearest')
+        featurewise_center=True,
+        featurewise_std_normalization=True,
+        width_shift_range=0,
+        height_shift_range=0,
+        rotation_range=0,
+        zoom_range=0,
+        # shear_range=0.15,
+        horizontal_flip=True,
+        vertical_flip=False,
+        fill_mode='nearest')
 
     train_generator = datagen.flow_from_dataframe(dataframe=tdf, x_col="filename", y_col="label",
                                                   class_mode="categorical", target_size=target_size,
@@ -359,9 +366,9 @@ def main():
                                                   batch_size=batch_size)
 
     valid_generator = vdatagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
-                                                  class_mode="categorical", target_size=target_size,
-                                                  shuffle=True,
-                                                  batch_size=batch_size)
+                                                   class_mode="categorical", target_size=target_size,
+                                                   shuffle=True,
+                                                   batch_size=batch_size)
     STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
     STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
 
@@ -370,7 +377,7 @@ def main():
                         epochs=100,
                         verbose=1,
                         steps_per_epoch=STEP_SIZE_TRAIN,
-                        validation_steps = STEP_SIZE_VALID,
+                        validation_steps=STEP_SIZE_VALID,
                         callbacks=callbacks_list)
 
     # ......................................................................
