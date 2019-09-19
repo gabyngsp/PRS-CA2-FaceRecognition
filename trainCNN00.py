@@ -307,7 +307,7 @@ def main():
     # loading data.
     # details refer https://www.tensorflow.org/tutorials/load_data/images#retrieve_the_images
 
-    data_root_orig = './data'
+    data_root_orig = './data-face'
     data_root = pathlib.Path(data_root_orig)
     print(data_root)
 

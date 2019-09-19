@@ -19,11 +19,27 @@ def main():
     # tf.compat.v1.enable_eager_execution()
 
 
-    data_root_orig = './data'
+    data_root_orig = './test'
     modelname = 'face00'
 
+    data_root = pathlib.Path(data_root_orig)
+    all_image_paths = list(data_root.glob('*/*.jpg'))
+    all_image_paths = [str(path) for path in all_image_paths]
+
+    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
+    label_to_index = dict((name, i) for i, name in enumerate(label_names))
+
+    all_image_labels = [pathlib.Path(path).parent.name
+                        for path in all_image_paths]
+
+    df = pd.DataFrame()
+    df['filename'] = all_image_paths
+    df['label'] = all_image_labels
+
     # test_set_df = pd.read_csv(modelname+'_test_set.csv')
-    test_set_df = pd.read_csv('manual_test.csv')
+    # test_set_df = pd.read_csv('manual_test.csv')
+
+    test_set_df = df
 
     data_root = pathlib.Path(data_root_orig)
     print(data_root)
@@ -92,6 +108,8 @@ def main():
                                                   target_size=(pixel, pixel),
                                                   shuffle=False,
                                                   batch_size=128)
+
+
 
     # print('data:', test_set_df['data'][0].shape)
     # plt.imshow(test_set_df['data'][0])
