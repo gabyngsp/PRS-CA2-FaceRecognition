@@ -244,7 +244,7 @@ def createModel(target_size=(128, 128)):
     # x = Dropout(0.25)(x)
 
     x = Flatten()(x)
-    x = Dense(32, activation='relu')(x)
+    x = Dense(512, activation='relu')(x)
     outputs = Dense(3,
                     activation='softmax',
                     kernel_initializer='he_normal')(x)
@@ -384,6 +384,7 @@ def main():
                                                    class_mode="categorical", target_size=target_size,
                                                    shuffle=True,
                                                    batch_size=batch_size)
+
     STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
     STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
 

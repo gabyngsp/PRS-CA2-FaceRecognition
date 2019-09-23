@@ -46,7 +46,9 @@ def preprocess_image(image):
 
 def load_and_preprocess_image(path):
     print('load_and_preprocess_image:', path)
-    image = tf.read_file(path)
+    # image = tf.keras.preprocessing.image.load_img(path, target_size=(pixel, pixel))
+    # image = tf.keras.preprocessing.image.img_to_array(image)
+    image=tf.read_file(path)
     return preprocess_image(image)
 
 
@@ -126,7 +128,7 @@ def resBlkV1(inputs,
     return x
 
 
-def createResNetV1(inputShape=(32, 32, 3),
+def createResNetV1(inputShape=(128, 128, 3),
                    numberClasses=3):
     inputs = Input(shape=inputShape)
     v = resLyr(inputs, numFilters=16, kernelSize=3, lyrName='Inpt')
@@ -200,20 +202,20 @@ def createModel(target_size=(128, 128)):
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
     #
-    # model.add(Conv2D(256, (3, 3)))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling2D(pool_size=(2, 2)))
-    # model.add(Dropout(0.25))
-    #
-    # model.add(Conv2D(512, (3, 3)))
-    # model.add(Activation('relu'))
+    model.add(Conv2D(256, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+
+    model.add(Conv2D(512, (3, 3)))
+    model.add(Activation('relu'))
 
     # model.add(MaxPooling2D(pool_size=(2, 2)))
     # model.add(Conv2D(512, (3, 3)))
     # model.add(Activation('relu'))
 
     model.add(Flatten())
-    model.add(Dense(32))
+    model.add(Dense(512))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(3, activation='softmax'))
@@ -269,78 +271,21 @@ def main():
     seed = 29
     np.random.seed(seed)
 
-    # tf.compat.v1.enable_eager_execution()
-    # matplotlib.use("GTK3Cairo")
-
     # loading data.
     # details refer https://www.tensorflow.org/tutorials/load_data/images#retrieve_the_images
 
-    data_root_orig = './data'
-    data_root = pathlib.Path(data_root_orig)
-    print(data_root)
-
-    for item in data_root.iterdir():
-        print(item)
-
-    all_image_paths = list(data_root.glob('*/*.jpg'))
-    all_image_paths = sorted(all_image_paths)
-
-    all_image_paths = [str(path) for path in all_image_paths]
-    random.shuffle(all_image_paths)
-
-    image_count = len(all_image_paths)
-    # print(all_image_paths[:10])
-
-    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
-    label_to_index = dict((name, i) for i, name in enumerate(label_names))
-    # print(label_to_index)
-
-    all_image_labels = [pathlib.Path(path).parent.name
-                        for path in all_image_paths]
-
-    all_image_labels_index = [label_to_index[pathlib.Path(path).parent.name]
-                              for path in all_image_paths]
-
-    df = pd.DataFrame()
-    df['filename'] = all_image_paths
-    df['label'] = all_image_labels
-    df.to_csv('df.csv')
-
-    # print('DF:', df)
-    mask = np.random.rand(len(df))
-    train_mask = mask < 0.7
-    validation_mask = np.logical_and(mask > 0.7, mask < 0.9)
-    test_mask = mask > 0.9
-
-    tdf = df[train_mask]
-    vdf = df[validation_mask]
-    vdf.to_csv('v_set.csv')
-
-    test_df = df[test_mask]
-    test_df.to_csv('test_set.csv')
+    data_root_orig = './data-face'
+    tdf, vdf = prepare_dataset(data_root_orig)
 
     model = createModel(target_size)
 
     print('model summary:', model.summary())
 
-    modelname = 'face'
-    filepath = modelname + ".hdf5"
-    checkpoint = ModelCheckpoint(filepath,
-                                 monitor='val_acc',
-                                 verbose=0,
-                                 save_best_only=True,
-                                 mode='max')
-
-    # Log the epoch detail into csv
-    csv_logger = CSVLogger(modelname + '.csv')
-    # callbacks_list  = [checkpoint,csv_logger]
-
-    LRScheduler = LearningRateScheduler(lrSchedule)
-    callbacks_list = [checkpoint, csv_logger, LRScheduler]
+    modelname = 'CNN-face'
+    callbacks_list = prepareCheckpoints(modelname)
 
     datagen = ImageDataGenerator(
-        featurewise_center=True,
-        featurewise_std_normalization=True,
+        rescale=1./255,
         width_shift_range=0.1,
         height_shift_range=0.1,
         rotation_range=20,
@@ -351,13 +296,7 @@ def main():
         fill_mode='nearest')
 
     vdatagen = ImageDataGenerator(
-        featurewise_center=True,
-        featurewise_std_normalization=True,
-        width_shift_range=0,
-        height_shift_range=0,
-        rotation_range=0,
-        zoom_range=0,
-        # shear_range=0.15,
+        rescale=1./255,
         horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
@@ -380,7 +319,9 @@ def main():
                         verbose=1,
                         steps_per_epoch=STEP_SIZE_TRAIN,
                         validation_steps=STEP_SIZE_VALID,
-                        callbacks=callbacks_list)
+                        callbacks=callbacks_list,
+                        workers=6,
+                        use_multiprocessing=True)
 
     # ......................................................................
 
@@ -392,6 +333,56 @@ def main():
     # modelGo.compile(loss='categorical_crossentropy',
     #                 optimizer=optimizers.Adam(lr=0.001),
     #                 metrics=['accuracy'])
+
+
+def prepareCheckpoints(modelname):
+    filepath = modelname + ".hdf5"
+    checkpoint = ModelCheckpoint(filepath,
+                                 monitor='val_acc',
+                                 verbose=0,
+                                 save_best_only=True,
+                                 mode='max')
+    # Log the epoch detail into csv
+    csv_logger = CSVLogger(modelname + '.csv')
+    # callbacks_list  = [checkpoint,csv_logger]
+    LRScheduler = LearningRateScheduler(lrSchedule)
+    callbacks_list = [checkpoint, csv_logger, LRScheduler]
+    return callbacks_list
+
+
+def prepare_dataset(data_root_orig):
+    data_root = pathlib.Path(data_root_orig)
+    print(data_root)
+    for item in data_root.iterdir():
+        print(item)
+    all_image_paths = list(data_root.glob('*/*.jpg'))
+    all_image_paths = sorted(all_image_paths)
+    all_image_paths = [str(path) for path in all_image_paths]
+    random.shuffle(all_image_paths)
+    image_count = len(all_image_paths)
+    # print(all_image_paths[:10])
+    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
+    label_to_index = dict((name, i) for i, name in enumerate(label_names))
+    # print(label_to_index)
+    all_image_labels = [pathlib.Path(path).parent.name
+                        for path in all_image_paths]
+    all_image_labels_index = [label_to_index[pathlib.Path(path).parent.name]
+                              for path in all_image_paths]
+    df = pd.DataFrame()
+    df['filename'] = all_image_paths
+    df['label'] = all_image_labels
+    df.to_csv('df.csv')
+    # print('DF:', df)
+    mask = np.random.rand(len(df))
+    train_mask = mask < 0.7
+    validation_mask = np.logical_and(mask > 0.7, mask < 0.9)
+    test_mask = mask > 0.9
+    tdf = df[train_mask]
+    vdf = df[validation_mask]
+    vdf.to_csv('v_set.csv')
+    test_df = df[test_mask]
+    test_df.to_csv('test_set.csv')
+    return tdf, vdf
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 import os
 import pathlib
 
+import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -8,10 +9,10 @@ import sklearn.metrics as metrics
 from tensorflow.keras import optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-import trainCNN00
-from trainCNN00 import load_and_preprocess_image, createModel
+import trainCNN
+from trainCNN import load_and_preprocess_image, createModel
 
-pixel = trainCNN00.pixel
+pixel = trainCNN.pixel
 
 
 def main():
@@ -19,8 +20,8 @@ def main():
     # tf.compat.v1.enable_eager_execution()
 
 
-    data_root_orig = './test'
-    modelname = 'face00'
+    data_root_orig = './testData'
+    modelname = 'face'
 
     data_root = pathlib.Path(data_root_orig)
     all_image_paths = list(data_root.glob('*/*.jpg'))
@@ -41,16 +42,9 @@ def main():
 
     test_set_df = df
 
-    data_root = pathlib.Path(data_root_orig)
-    print(data_root)
-    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
-    label_to_index = dict((name, i) for i, name in enumerate(label_names))
 
     for item in data_root.iterdir():
         print(item)
-
-    all_image_paths = list(data_root.glob('*/*.jpg'))
-    all_image_paths = sorted(all_image_paths)
 
     # print(all_image_paths)
 
@@ -90,13 +84,14 @@ def main():
         rotation_range=0,
         zoom_range=0,
         # shear_range=0.15,
-        horizontal_flip=True,
+        horizontal_flip=False,
         vertical_flip=False,
         fill_mode='nearest')
 
 
 
     # test_set_df = pd.read_csv('v_set.csv')
+    # test_set_df = pd.read_csv('test_set.csv')
 
     # test_set_df['data'] = test_set_df['filename'].apply(load_and_preprocess_image)
     # test_set_df.drop_duplicates(subset=['data'], inplace=True)
@@ -124,6 +119,7 @@ def main():
     predicts = modelGo.predict_generator(test_generator)
     predout = np.argmax(predicts, axis=1)
     testout = test_set_df['label'].apply(lambda x: label_to_index[x]).values
+    print('images:', test_set_df['filename'])
     print('testout:', testout)
     print('predout:', predout)
 
@@ -141,11 +137,16 @@ def main():
 
 def testAnImage(filename, label_names, modelGo):
     check = load_and_preprocess_image(filename)
+    img_file = mpimg.imread(filename)
+    print(check)
+
+    # img_file = tf.read_file(filename)
     # check = tf.image.rot90(check, k=1)
-    plt.imshow(check)
+    plt.imshow(img_file)
+
     plt.show()
     print(type(check))
-    predicts = modelGo.predict(np.asarray([check]))
+    predicts = modelGo.predict(np.asarray([check]), steps=1)
     print(label_names)
     print(predicts)
 
