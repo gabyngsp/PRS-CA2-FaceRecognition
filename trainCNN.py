@@ -32,11 +32,12 @@ from tensorflow.keras.layers import add
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.regularizers import l2
 
-pixel = 128
-batch_size = 128
+
+# pixel = 128
+# batch_size = 128
 
 
-def preprocess_image(image):
+def preprocess_image(image, pixel):
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.resize(image, [pixel, pixel])
     image /= 255.0  # normalize to [0,1] range
@@ -131,32 +132,28 @@ def resBlkV1(inputs,
 def createResNetV1(inputShape=(128, 128, 3),
                    numberClasses=3):
     inputs = Input(shape=inputShape)
-    v = resLyr(inputs, numFilters=16, kernelSize=3, lyrName='Inpt')
+    v = resLyr(inputs, numFilters=16, kernelSize=5, lyrName='Inpt')
     v = resBlkV1(inputs=v,
                  numFilters=16,
-                 numBlocks=1,
-                 kernelSize=3,
+                 numBlocks=5,
                  downSampleOnFirst=False,
                  names='Stg1')
     v = resBlkV1(inputs=v,
                  numFilters=32,
-                 numBlocks=8,
-                 kernelSize=5,
+                 numBlocks=5,
                  downSampleOnFirst=True,
                  names='Stg2')
     v = resBlkV1(inputs=v,
                  numFilters=64,
-                 numBlocks=10,
-                 kernelSize=3,
+                 numBlocks=5,
                  downSampleOnFirst=True,
                  names='Stg3')
-    v = resBlkV1(inputs=v,
-                 numFilters=512,
-                 numBlocks=6,
-                 kernelSize=3,
-                 downSampleOnFirst=True,
-                 names='Stg4')
-    v = AveragePooling2D(pool_size=4,
+#     v = resBlkV1(inputs=v,
+#                  numFilters=512,
+#                  numBlocks=6,
+#                  downSampleOnFirst=True,
+#                  names='Stg4')
+    v = AveragePooling2D(pool_size=8,
                          name='AvgPool')(v)
     v = Flatten()(v)
     outputs = Dense(numberClasses,
@@ -166,7 +163,7 @@ def createResNetV1(inputShape=(128, 128, 3),
     model = Model(inputs=inputs, outputs=outputs)
 
     model.compile(loss='categorical_crossentropy',
-                  optimizer=optimizers.Adam(lr=0.001),
+                  optimizer=optimizers.Adam(lr=0.002),
                   metrics=['accuracy'])
     return model
 
@@ -180,8 +177,6 @@ def createResNetV1(inputShape=(128, 128, 3),
 
 
 def createModel(target_size=(128, 128)):
-    # model = createResNetV1(inputShape=(target_size[0], target_size[1], 3))
-
     model = Sequential()
     model.add(Conv2D(32, (3, 3),
                      input_shape=(target_size[0], target_size[1], 3)))
@@ -221,11 +216,8 @@ def createModel(target_size=(128, 128)):
     model.add(Dense(3, activation='softmax'))
 
     model.compile(optimizer=optimizers.Adam(lr=0.001),
-                                     loss="categorical_crossentropy", metrics=["accuracy"])
-
+                  loss="categorical_crossentropy", metrics=["accuracy"])
     return model
-
-    # Setup the models
 
 
 def printSample(all_image_paths):
@@ -265,38 +257,78 @@ def lrSchedule(epoch):
     return lr
 
 
-def main():
-    target_size = (pixel, pixel)
 
-    seed = 29
-    np.random.seed(seed)
-
-    # loading data.
-    # details refer https://www.tensorflow.org/tutorials/load_data/images#retrieve_the_images
-
-    data_root_orig = './data-face'
-    tdf, vdf = prepare_dataset(data_root_orig)
-
-    model = createModel(target_size)
-
-    print('model summary:', model.summary())
-
-    modelname = 'CNN-face'
-    callbacks_list = prepareCheckpoints(modelname)
-
+def generator_samplewise(target_size, tdf, vdf, batch_size):
     datagen = ImageDataGenerator(
-        rescale=1./255,
+        samplewise_center=True,
+        samplewise_std_normalization=True,
         width_shift_range=0.1,
         height_shift_range=0.1,
         rotation_range=20,
         zoom_range=0.10,
-        # shear_range=0.15,
+        shear_range=0.15,
+        horizontal_flip=False,
+        vertical_flip=False,
+        fill_mode='nearest')
+    vdatagen = ImageDataGenerator(
+        samplewise_center=True,
+        samplewise_std_normalization=True,
         horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
+    train_generator = datagen.flow_from_dataframe(dataframe=tdf, x_col="filename", y_col="label",
+                                                  class_mode="categorical", target_size=target_size,
+                                                  shuffle=True,
+                                                  batch_size=batch_size)
+    valid_generator = vdatagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
+                                                   class_mode="categorical", target_size=target_size,
+                                                   shuffle=True,
+                                                   batch_size=batch_size)
+    return train_generator, valid_generator
 
+def generator_rescale_samplewise(target_size, tdf, vdf, batch_size):
+    datagen = ImageDataGenerator(
+        rescale=1. / 255,
+        samplewise_center=True,
+        samplewise_std_normalization=True,
+        width_shift_range=0.1,
+        height_shift_range=0.1,
+        rotation_range=20,
+        zoom_range=0.10,
+        shear_range=0.15,
+        horizontal_flip=False,
+        vertical_flip=False,
+        fill_mode='nearest')
     vdatagen = ImageDataGenerator(
-        rescale=1./255,
+        rescale=1. / 255,
+        samplewise_center=True,
+        samplewise_std_normalization=True,
+        horizontal_flip=True,
+        vertical_flip=False,
+        fill_mode='nearest')
+    train_generator = datagen.flow_from_dataframe(dataframe=tdf, x_col="filename", y_col="label",
+                                                  class_mode="categorical", target_size=target_size,
+                                                  shuffle=True,
+                                                  batch_size=batch_size)
+    valid_generator = vdatagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
+                                                   class_mode="categorical", target_size=target_size,
+                                                   shuffle=True,
+                                                   batch_size=batch_size)
+    return train_generator, valid_generator
+
+def generator_rescale(target_size, tdf, vdf, batch_size):
+    datagen = ImageDataGenerator(
+        rescale=1. / 255,
+        width_shift_range=0.1,
+        height_shift_range=0.1,
+        rotation_range=20,
+        zoom_range=0.10,
+        shear_range=0.15,
+        horizontal_flip=False,
+        vertical_flip=False,
+        fill_mode='nearest')
+    vdatagen = ImageDataGenerator(
+        rescale=1. / 255,
         horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
@@ -305,35 +337,11 @@ def main():
                                                   class_mode="categorical", target_size=target_size,
                                                   shuffle=True,
                                                   batch_size=batch_size)
-
     valid_generator = vdatagen.flow_from_dataframe(dataframe=vdf, x_col="filename", y_col="label",
                                                    class_mode="categorical", target_size=target_size,
                                                    shuffle=True,
                                                    batch_size=batch_size)
-    STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
-    STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
-
-    model.fit_generator(train_generator,
-                        validation_data=valid_generator,
-                        epochs=100,
-                        verbose=1,
-                        steps_per_epoch=STEP_SIZE_TRAIN,
-                        validation_steps=STEP_SIZE_VALID,
-                        callbacks=callbacks_list,
-                        workers=6,
-                        use_multiprocessing=True)
-
-    # ......................................................................
-
-    # Now the training is complete, we get
-    # another object to load the weights
-    # compile it, so that we can do
-    # final evaluation on it
-    # modelGo.load_weights(filepath)
-    # modelGo.compile(loss='categorical_crossentropy',
-    #                 optimizer=optimizers.Adam(lr=0.001),
-    #                 metrics=['accuracy'])
-
+    return train_generator, valid_generator
 
 def prepareCheckpoints(modelname):
     filepath = modelname + ".hdf5"
@@ -371,7 +379,7 @@ def prepare_dataset(data_root_orig):
     df = pd.DataFrame()
     df['filename'] = all_image_paths
     df['label'] = all_image_labels
-    df.to_csv('df.csv')
+    df.to_csv(data_root_orig+'-df.csv')
     # print('DF:', df)
     mask = np.random.rand(len(df))
     train_mask = mask < 0.7
@@ -379,11 +387,59 @@ def prepare_dataset(data_root_orig):
     test_mask = mask > 0.9
     tdf = df[train_mask]
     vdf = df[validation_mask]
-    vdf.to_csv('v_set.csv')
+    vdf.to_csv(data_root_orig+'-v_set.csv')
     test_df = df[test_mask]
-    test_df.to_csv('test_set.csv')
+    test_df.to_csv(data_root_orig+'-test_set.csv')
     return tdf, vdf
 
+def main():
+    modelname = 'model/best-model'
+    datatype = 'data-face'
+    batch_size= 128
+
+    pixel = 128
+    target_size = (pixel, pixel)
+
+    seed = 29
+    np.random.seed(seed)
+
+    # loading data.
+    # details refer https://www.tensorflow.org/tutorials/load_data/images#retrieve_the_images
+
+    tdf, vdf = prepare_dataset(datatype)
+
+    model = createModel(target_size)
+
+    print('model summary:', model.summary())
+
+    callbacks_list = prepareCheckpoints(modelname)
+
+    train_generator, valid_generator = generator_rescale_samplewise(target_size, tdf, vdf, batch_size)
+
+
+    STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
+    STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
+
+    model.fit_generator(train_generator,
+                        validation_data=valid_generator,
+                        epochs=100,
+                        verbose=1,
+                        steps_per_epoch=STEP_SIZE_TRAIN,
+                        validation_steps=STEP_SIZE_VALID,
+                        callbacks=callbacks_list,
+                        workers=6,
+                        use_multiprocessing=True)
+
+    # ......................................................................
+
+    # Now the training is complete, we get
+    # another object to load the weights
+    # compile it, so that we can do
+    # final evaluation on it
+    # modelGo.load_weights(filepath)
+    # modelGo.compile(loss='categorical_crossentropy',
+    #                 optimizer=optimizers.Adam(lr=0.001),
+    #                 metrics=['accuracy'])
 
 if __name__ == '__main__':
     main()
