@@ -2,3 +2,4 @@ matplotlib
 pandas
 sklearn
 face_recognition
+wheel
