@@ -1,5 +1,6 @@
 matplotlib
 pandas
 sklearn
-face_recognition
 wheel
+dlib
+face_recognition
