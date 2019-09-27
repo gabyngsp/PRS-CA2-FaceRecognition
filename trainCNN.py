@@ -175,6 +175,48 @@ def createResNetV1(inputShape=(128, 128, 3),
     #
     # return parallel
 
+def createSimpleModel(target_size=(128, 128)):
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3),
+                     input_shape=(target_size[0], target_size[1], 3)))
+    model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Conv2D(64, (3, 3)))
+    # model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Dropout(0.25))
+    #
+    # model.add(Conv2D(128, (3, 3)))
+    # model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    #
+    # ## leeseng: deeper block that make model training converges.
+    # model.add(Conv2D(256, (3, 3)))
+    # model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Dropout(0.25))
+    # #
+    # model.add(Conv2D(256, (3, 3)))
+    # model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Dropout(0.25))
+    #
+    # model.add(Conv2D(512, (3, 3)))
+    # model.add(Activation('relu'))
+
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Conv2D(512, (3, 3)))
+    # model.add(Activation('relu'))
+
+    model.add(Flatten())
+    # model.add(Dense(512))
+    # model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(3, activation='softmax'))
+
+    model.compile(optimizer=optimizers.Adam(lr=0.001),
+                  loss="categorical_crossentropy", metrics=["accuracy"])
+    return model
 
 def createModel(target_size=(128, 128)):
     model = Sequential()
@@ -253,10 +295,61 @@ def lrSchedule(epoch):
     elif epoch > 80:
         lr *= 1e-1
 
+    # if epoch > 120:
+    #     lr *= 0.5e-3
+    # elif epoch > 80:
+    #     lr *= 1e-3
+    # elif epoch > 50:
+    #     lr *= 1e-2
+    # elif epoch > 30:
+    #     lr *= 1e-1
+
     print('Learning rate:', lr)
     return lr
 
 
+def createModel85(target_size=(128, 128)):
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3),
+                     input_shape=(target_size[0], target_size[1], 3)))
+    model.add(Activation('relu'))
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(64, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    #
+    model.add(Conv2D(128, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+
+    ## leeseng: deeper block that make model training converges.
+    model.add(Conv2D(256, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    #
+    model.add(Conv2D(256, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+
+    model.add(Conv2D(512, (3, 3)))
+    model.add(Activation('relu'))
+
+    # model.add(MaxPooling2D(pool_size=(2, 2)))
+    # model.add(Conv2D(512, (3, 3)))
+    # model.add(Activation('relu'))
+
+    model.add(Flatten())
+    model.add(Dense(512))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(3, activation='softmax'))
+
+    model.compile(optimizer=optimizers.Adam(lr=0.001),
+                  loss="categorical_crossentropy", metrics=["accuracy"])
+    return model
 
 def generator_samplewise(target_size, tdf, vdf, batch_size):
     datagen = ImageDataGenerator(
@@ -267,7 +360,7 @@ def generator_samplewise(target_size, tdf, vdf, batch_size):
         rotation_range=20,
         zoom_range=0.10,
         shear_range=0.15,
-        horizontal_flip=False,
+        horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
     vdatagen = ImageDataGenerator(
@@ -296,7 +389,7 @@ def generator_rescale_samplewise(target_size, tdf, vdf, batch_size):
         rotation_range=20,
         zoom_range=0.10,
         shear_range=0.15,
-        horizontal_flip=False,
+        horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
     vdatagen = ImageDataGenerator(
@@ -324,7 +417,7 @@ def generator_rescale(target_size, tdf, vdf, batch_size):
         rotation_range=20,
         zoom_range=0.10,
         shear_range=0.15,
-        horizontal_flip=False,
+        horizontal_flip=True,
         vertical_flip=False,
         fill_mode='nearest')
     vdatagen = ImageDataGenerator(
@@ -343,7 +436,7 @@ def generator_rescale(target_size, tdf, vdf, batch_size):
                                                    batch_size=batch_size)
     return train_generator, valid_generator
 
-def prepareCheckpoints(modelname):
+def prepareCNNCheckpoints(modelname):
     filepath = modelname + ".hdf5"
     checkpoint = ModelCheckpoint(filepath,
                                  monitor='val_acc',
@@ -352,9 +445,26 @@ def prepareCheckpoints(modelname):
                                  mode='max')
     # Log the epoch detail into csv
     csv_logger = CSVLogger(modelname + '.csv')
-    # callbacks_list  = [checkpoint,csv_logger]
+    callbacks_list  = [checkpoint,csv_logger]
+    # LRScheduler = LearningRateScheduler(lrSchedule)
+    # callbacks_list = [checkpoint, csv_logger, LRScheduler]
+
+    return callbacks_list
+
+
+def prepareResNetCheckpoints(modelname):
+    filepath = modelname + ".hdf5"
+    checkpoint = ModelCheckpoint(filepath,
+                                 monitor='val_acc',
+                                 verbose=0,
+                                 save_best_only=True,
+                                 mode='max')
+    # Log the epoch detail into csv
+    csv_logger = CSVLogger(modelname + '.csv')
+    # callbacks_list = [checkpoint, csv_logger]
     LRScheduler = LearningRateScheduler(lrSchedule)
     callbacks_list = [checkpoint, csv_logger, LRScheduler]
+
     return callbacks_list
 
 
@@ -409,13 +519,16 @@ def main():
     tdf, vdf = prepare_dataset(datatype)
 
     model = createModel(target_size)
+    # model = createResNetV1(target_size)
+
 
     print('model summary:', model.summary())
 
-    callbacks_list = prepareCheckpoints(modelname)
+    callbacks_list = prepareCNNCheckpoints(modelname)
+    # callbacks_list = prepareResNetCheckpoints(modelname)
 
     train_generator, valid_generator = generator_rescale_samplewise(target_size, tdf, vdf, batch_size)
-
+    # train_generator, valid_generator = generator_samplewise(target_size, tdf, vdf, batch_size)
 
     STEP_SIZE_TRAIN = train_generator.n // train_generator.batch_size
     STEP_SIZE_VALID = valid_generator.n // valid_generator.batch_size
@@ -427,7 +540,7 @@ def main():
                         steps_per_epoch=STEP_SIZE_TRAIN,
                         validation_steps=STEP_SIZE_VALID,
                         callbacks=callbacks_list,
-                        workers=6,
+                        workers=3,
                         use_multiprocessing=True)
 
     # ......................................................................

@@ -1,7 +1,5 @@
-import os
 import pathlib
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -9,47 +7,32 @@ import sklearn.metrics as metrics
 from tensorflow.keras import optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-import trainCNN
-from trainCNN import load_and_preprocess_image, createModel
-
-pixel = trainCNN.pixel
+from trainCNN import createModel
 
 
 def main():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     # tf.compat.v1.enable_eager_execution()
 
 
-    data_root_orig = './testData'
-    modelname = 'face'
+    modelname = 'model/best-model'
+    # modelname='retest-face_cnn_sample_b128_e100'
+    datatype = 'testData-face'
+    batch_size= 128
 
-    data_root = pathlib.Path(data_root_orig)
-    all_image_paths = list(data_root.glob('*/*.jpg'))
-    all_image_paths = [str(path) for path in all_image_paths]
+    pixel = 128
+    target_size = (pixel, pixel)
+    seed = 29
+    np.random.seed(seed)
 
-    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
-    label_to_index = dict((name, i) for i, name in enumerate(label_names))
 
-    all_image_labels = [pathlib.Path(path).parent.name
-                        for path in all_image_paths]
-
-    df = pd.DataFrame()
-    df['filename'] = all_image_paths
-    df['label'] = all_image_labels
+    df, label_names, label_to_index = prepare_test_dataset(datatype)
 
     # test_set_df = pd.read_csv(modelname+'_test_set.csv')
     # test_set_df = pd.read_csv('manual_test.csv')
 
     test_set_df = df
 
-
-    for item in data_root.iterdir():
-        print(item)
-
-    # print(all_image_paths)
-
-    # msk = np.random.rand(10)
-    # print(msk > 0.9)
 
     records = pd.read_csv(modelname + '.csv')
     plt.figure()
@@ -72,13 +55,17 @@ def main():
     filepath = modelname + ".hdf5"
 
     modelGo = createModel(target_size=(pixel, pixel))  # This is used for final testing
-    modelGo.load_weights(filepath)
+    modelGo.load_weights(filepath) # due to our val_acc=1.00 reached much earlier during training for ModelCheckpoint, monitor='val_acc', mode='max'
+                                    # score here will be slightly lower than in report.
+
     modelGo.compile(loss='categorical_crossentropy',
                     optimizer=optimizers.Adam(lr=0.001),
                     metrics=['accuracy'])
 
     tdatagen = ImageDataGenerator(
-        rescale=1. / 255,
+        # rescale=1. / 255,
+        samplewise_center=True,
+        samplewise_std_normalization=True,
         width_shift_range=0,
         height_shift_range=0,
         rotation_range=0,
@@ -102,7 +89,7 @@ def main():
                                                   class_mode="categorical",
                                                   target_size=(pixel, pixel),
                                                   shuffle=False,
-                                                  batch_size=128)
+                                                  batch_size=batch_size)
 
 
 
@@ -126,29 +113,43 @@ def main():
     testScores = metrics.accuracy_score(testout, predout)
     confusion = metrics.confusion_matrix(testout, predout)
 
+    # due to our val_acc=1.00 reached much earlier during training for ModelCheckpoint, monitor='val_acc', mode='max'
+    # score here will be slightly lower than in report.
+
     print("Best accuracy (on testing dataset): %.2f%%" % (testScores * 100))
     print(metrics.classification_report(testout, predout, target_names=label_names, digits=4))
     print(confusion)
 
-    testAnImage(test_set_df['filename'][0], label_names, modelGo)
-    testAnImage(test_set_df['filename'][1], label_names, modelGo)
-    # testAnImage('test/IMG_20190904_204717.jpg', label_names, modelGo)
 
 
-def testAnImage(filename, label_names, modelGo):
-    check = load_and_preprocess_image(filename)
-    img_file = mpimg.imread(filename)
-    print(check)
+def prepare_test_dataset(datatype):
+    data_root = pathlib.Path(datatype)
+    all_image_paths = list(data_root.glob('*/*.jpg'))
+    all_image_paths = [str(path) for path in all_image_paths]
+    label_names = sorted(item.name for item in data_root.glob('*/') if item.is_dir())
+    label_to_index = dict((name, i) for i, name in enumerate(label_names))
+    all_image_labels = [pathlib.Path(path).parent.name
+                        for path in all_image_paths]
+    df = pd.DataFrame()
+    df['filename'] = all_image_paths
+    df['label'] = all_image_labels
+    return df, label_names, label_to_index
 
-    # img_file = tf.read_file(filename)
-    # check = tf.image.rot90(check, k=1)
-    plt.imshow(img_file)
 
-    plt.show()
-    print(type(check))
-    predicts = modelGo.predict(np.asarray([check]), steps=1)
-    print(label_names)
-    print(predicts)
+# def testAnImage(filename, label_names, modelGo):
+#     check = load_and_preprocess_image(filename)
+#     img_file = mpimg.imread(filename)
+#     print(check)
+#
+#     # img_file = tf.read_file(filename)
+#     # check = tf.image.rot90(check, k=1)
+#     plt.imshow(img_file)
+#
+#     plt.show()
+#     print(type(check))
+#     predicts = modelGo.predict(np.asarray([check]), steps=1)
+#     print(label_names)
+#     print(predicts)
 
 
 #
