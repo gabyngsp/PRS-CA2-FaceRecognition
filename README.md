@@ -38,11 +38,11 @@ To try video conversion
 4. rm data-face data-full         # after review video conversion, unzip training-data-20190925.zip for training.
 
 To Code, 
-    - runs pycharm community edition. 
-    - open project on folder, PRS-CA2-FaceRecognition. 
-    - setup "Project Interpreter with existing VirtualEnv"
-    - run/debug trainCNN.py
-    - note: uses pycharm 2019.1.x. pycharm 2019.2.x needs to comments out server.py in pydevd_dont_trace_files.py under pycharm program folder. Refers bug report, https://youtrack.jetbrains.com/issue/PY-37609
+- runs pycharm community edition. 
+- open project on folder, PRS-CA2-FaceRecognition. 
+- setup "Project Interpreter with existing VirtualEnv"
+- run/debug trainCNN.py
+- note: uses pycharm 2019.1.x. pycharm 2019.2.x needs to comments out server.py in pydevd_dont_trace_files.py under pycharm program folder. Refers bug report, https://youtrack.jetbrains.com/issue/PY-37609
 
 
 
