@@ -4,3 +4,4 @@ sklearn
 wheel
 dlib
 face_recognition
+opencv-python
