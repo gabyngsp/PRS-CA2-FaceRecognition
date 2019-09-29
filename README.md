@@ -12,7 +12,7 @@ MTech 2019/2020 - Intelligent System - CA2 Face Recognition
 | :---: | :---: | :---: | :---: |
 | TEA LEE SENG | A0198538J | Data processing, network design and troubleshoot,project report | e0402079@u.nus.edu / TEALEESENG@gmail.com |
 | NG SIEW PHENG | A0198525R  | Data processing, model training and fine-tuning, project report | e0402066@u.nus.edu |
-| YANG XIAOYAN| A0056720L | TODO | e0401594@u.nus.edu |
+| YANG XIAOYAN| A0056720L | Data processing, model training and fine-tuning, project report | e0401594@u.nus.edu |
 
 # SECTION 4 : 
 ## Developer Guide
